@@ -1,5 +1,6 @@
-package data_access.outfit_suggestion;
+package data_access.outfit_image_generation;
 
+import data_access.outfit_suggestion.GeminiConfig;
 import entity.User;
 import okhttp3.*;
 import org.json.JSONArray;
@@ -18,7 +19,6 @@ public class OutfitImageGenerationDataAccessObject implements OutfitImageGenerat
             "https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent";
 
     private static final String API_KEY = GeminiConfig.API_KEY;
-
     private final OkHttpClient client = new OkHttpClient();
     private final User user;
 
@@ -46,7 +46,12 @@ public class OutfitImageGenerationDataAccessObject implements OutfitImageGenerat
 
     private String callGemini(String prompt) {
         try {
-            // Build JSON request body
+            if (API_KEY == null || API_KEY.isBlank()) {
+                System.err.println("Gemini API key is missing. Please set it in GeminiConfig.API_KEY.");
+                return null;
+            }
+
+            // Build JSON request body and explicitly ask Gemini for an image payload
             JSONObject requestJson = new JSONObject()
                     .put("contents", new JSONArray()
                             .put(new JSONObject()
@@ -56,6 +61,9 @@ public class OutfitImageGenerationDataAccessObject implements OutfitImageGenerat
                                             )
                                     )
                             )
+                    )
+                    .put("generationConfig", new JSONObject()
+                            .put("response_mime_type", "image/png")
                     );
 
             RequestBody body = RequestBody.create(requestJson.toString(), JSON_MEDIA);
@@ -81,14 +89,20 @@ public class OutfitImageGenerationDataAccessObject implements OutfitImageGenerat
             JSONObject json = new JSONObject(resp);
             JSONArray candidates = json.optJSONArray("candidates");
 
-            if (candidates == null || candidates.isEmpty()) return null;
+            if (candidates == null || candidates.isEmpty()) {
+                System.err.println("Gemini did not return any candidates.");
+                return null;
+            }
 
             JSONArray parts =
                     candidates.getJSONObject(0)
                             .getJSONObject("content")
                             .optJSONArray("parts");
 
-            if (parts == null) return null;
+            if (parts == null) {
+                System.err.println("Gemini candidates did not include any parts.");
+                return null;
+            }
 
             // Find inline_data part
             for (int i = 0; i < parts.length(); i++) {
@@ -98,7 +112,7 @@ public class OutfitImageGenerationDataAccessObject implements OutfitImageGenerat
                     return p.getJSONObject("inline_data").getString("data");
                 }
             }
-
+            System.err.println("Gemini candidates did not include inline image data.");
             return null;
 
         } catch (Exception e) {
