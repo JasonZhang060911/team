@@ -19,7 +19,10 @@ public class OutfitSuggestionPanel extends JFrame implements OutfitSuggestionVie
     private final JTextField locationField = new JTextField(20);
     private final JButton getSuggestionsButton = new JButton("Get Outfit Suggestions");
     private final JTextArea suggestionsArea = new JTextArea(15, 40);
+    private final JButton generateImagesButton = new JButton("Generate Outfit Images");
     private final JLabel statusLabel = new JLabel(" ");
+
+    private java.util.List<String> latestSuggestions = java.util.Collections.emptyList();
 
     public OutfitSuggestionPanel(User currentUser) {
         this.currentUser = currentUser;
@@ -60,6 +63,12 @@ public class OutfitSuggestionPanel extends JFrame implements OutfitSuggestionVie
         getSuggestionsButton.addActionListener(e -> onGetSuggestions());
         buttonPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
         buttonPanel.add(getSuggestionsButton);
+
+        generateImagesButton.setFont(new Font("Arial", Font.BOLD, 14));
+        generateImagesButton.addActionListener(e -> onGenerateImages());
+        generateImagesButton.setEnabled(false);
+        buttonPanel.add(generateImagesButton);
+
         mainPanel.add(buttonPanel);
         mainPanel.add(Box.createVerticalStrut(15));
 
@@ -120,6 +129,7 @@ public class OutfitSuggestionPanel extends JFrame implements OutfitSuggestionVie
         getSuggestionsButton.setEnabled(false);
         statusLabel.setText("Loading suggestions for " + currentUser.getName() + " ... ");
         suggestionsArea.setText("");
+        generateImagesButton.setEnabled(false);
 
         // run in background thread
         new SwingWorker<Void, Void>() {
@@ -150,6 +160,8 @@ public class OutfitSuggestionPanel extends JFrame implements OutfitSuggestionVie
             suggestionsArea.setText(display.toString());
             suggestionsArea.setCaretPosition(0);
             statusLabel.setText("Suggestions loaded successfully!");
+            latestSuggestions = parseOutfits(suggestions);
+            generateImagesButton.setEnabled(!latestSuggestions.isEmpty());
         });
     }
 
@@ -161,6 +173,42 @@ public class OutfitSuggestionPanel extends JFrame implements OutfitSuggestionVie
                     "Error",
                     JOptionPane.ERROR_MESSAGE);
             statusLabel.setText("Failed to load suggestions");
+            generateImagesButton.setEnabled(false);
+
         });
+    }
+
+    private java.util.List<String> parseOutfits(String suggestions) {
+        String[] blocks = suggestions.split("\n\n");
+        java.util.List<String> outfits = new java.util.ArrayList<>();
+        StringBuilder current = new StringBuilder();
+        for (String block : blocks) {
+            if (block.trim().toLowerCase().startsWith("outfit") && current.length() > 0) {
+                outfits.add(current.toString().trim());
+                current = new StringBuilder();
+            }
+            current.append(block.trim()).append("\n\n");
+        }
+        if (current.length() > 0) {
+            outfits.add(current.toString().trim());
+        }
+
+        if (outfits.isEmpty()) {
+            outfits.add(suggestions.trim());
+        }
+        return outfits;
+    }
+
+    private void onGenerateImages() {
+        if (latestSuggestions.isEmpty()) {
+            JOptionPane.showMessageDialog(this,
+                    "Please generate outfit suggestions first.",
+                    "No Suggestions",
+                    JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        OutfitImageGalleryPanel gallery = new OutfitImageGalleryPanel(currentUser, latestSuggestions);
+        gallery.setVisible(true);
     }
 }
